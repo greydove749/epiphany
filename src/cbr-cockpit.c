@@ -36,23 +36,29 @@ cbr_cockpit_new (void)
   gtk_widget_set_margin_end (box, 12);
   gtk_widget_set_margin_top (box, 12);
   gtk_widget_set_margin_bottom (box, 12);
-  gtk_widget_set_hexpand (box, TRUE);
+  gtk_widget_set_hexpand (box, FALSE);
   gtk_widget_set_vexpand (box, TRUE);
+  gtk_widget_set_size_request (box, 156, -1);
+  gtk_widget_set_can_target (box, FALSE);
   gtk_widget_set_name (box, "cbr-cockpit");
 
   title = gtk_label_new (_("CBR"));
   gtk_widget_add_css_class (title, "title-2");
   gtk_label_set_xalign (GTK_LABEL (title), 0.0);
+  gtk_widget_set_can_target (title, FALSE);
   gtk_box_append (GTK_BOX (box), title);
 
   spelled = gtk_label_new (_("Co-BrowseR"));
   gtk_label_set_xalign (GTK_LABEL (spelled), 0.0);
+  gtk_widget_set_can_target (spelled, FALSE);
   gtk_box_append (GTK_BOX (box), spelled);
 
   hint = gtk_label_new (_("Operator pane. URL bar, tabs, bookmarks, and downloads stay the browser’s. Page text is untrusted."));
   gtk_label_set_wrap (GTK_LABEL (hint), TRUE);
+  gtk_label_set_max_width_chars (GTK_LABEL (hint), 18);
   gtk_label_set_xalign (GTK_LABEL (hint), 0.0);
   gtk_widget_add_css_class (hint, "dim-label");
+  gtk_widget_set_can_target (hint, FALSE);
   gtk_box_append (GTK_BOX (box), hint);
 
   return box;

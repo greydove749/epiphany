@@ -161,7 +161,7 @@ struct _EphyWindow {
   GtkWidget *action_bar_revealer;
   GtkWidget *action_bar;
   GtkWidget *overlay_split_view;
-  GtkWidget *cbr_split_view;
+  GtkWidget *cbr_handle;
   GtkWidget *cbr_cockpit;
   GtkWidget *bottom_sheet;
   GtkWidget *bookmarks_dialog;
@@ -531,10 +531,8 @@ ephy_window_set_adaptive_mode (EphyWindow       *window,
     gtk_widget_add_css_class (GTK_WIDGET (window), "narrow");
     gtk_revealer_set_reveal_child (GTK_REVEALER (window->action_bar_revealer), TRUE);
     gtk_widget_set_visible (window->action_bar_revealer, TRUE);
-    if (window->cbr_split_view) {
-      adw_overlay_split_view_set_collapsed (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), TRUE);
-      adw_overlay_split_view_set_show_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), FALSE);
-    }
+    if (window->cbr_handle)
+      gtk_widget_set_visible (window->cbr_handle, FALSE);
   } else {
     g_object_ref (window->header_bar);
     adw_bin_set_child (ADW_BIN (window->header_bin_bottom), NULL);
@@ -542,10 +540,8 @@ ephy_window_set_adaptive_mode (EphyWindow       *window,
     g_object_unref (window->header_bar);
     gtk_widget_remove_css_class (GTK_WIDGET (window), "narrow");
     gtk_widget_set_visible (window->action_bar_revealer, FALSE);
-    if (window->cbr_split_view) {
-      adw_overlay_split_view_set_collapsed (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), FALSE);
-      adw_overlay_split_view_set_show_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), TRUE);
-    }
+    if (window->cbr_handle)
+      gtk_widget_set_visible (window->cbr_handle, TRUE);
   }
 }
 
@@ -4363,7 +4359,28 @@ ephy_window_constructed (GObject *object)
   g_signal_connect_object (scroll_controller, "scroll", G_CALLBACK (scroll_cb), window, G_CONNECT_SWAPPED);
   gtk_widget_add_controller (GTK_WIDGET (window->tab_view), scroll_controller);
 
-  ephy_fullscreen_box_set_content (window->fullscreen_box, GTK_WIDGET (window->toast_overlay));
+  /* CBR cockpit sits under the header, beside the page — not a full-height
+   * outer split (that stole the titlebar drag strip and the left of the
+   * URL bar). Empty chrome is a GtkWindowHandle so the pane moves the window. */
+  window->cbr_cockpit = cbr_cockpit_new ();
+  window->cbr_handle = gtk_window_handle_new ();
+  gtk_window_handle_set_child (GTK_WINDOW_HANDLE (window->cbr_handle), window->cbr_cockpit);
+  gtk_widget_set_size_request (window->cbr_handle, 156, -1);
+  gtk_widget_set_hexpand (window->cbr_handle, FALSE);
+  gtk_widget_set_vexpand (window->cbr_handle, TRUE);
+  gtk_widget_set_halign (window->cbr_handle, GTK_ALIGN_FILL);
+  gtk_widget_add_css_class (window->cbr_handle, "sidebar");
+
+  {
+    GtkWidget *body = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+    GtkWidget *sep = gtk_separator_new (GTK_ORIENTATION_VERTICAL);
+
+    gtk_widget_set_hexpand (window->toast_overlay, TRUE);
+    gtk_box_append (GTK_BOX (body), window->cbr_handle);
+    gtk_box_append (GTK_BOX (body), sep);
+    gtk_box_append (GTK_BOX (body), window->toast_overlay);
+    ephy_fullscreen_box_set_content (window->fullscreen_box, body);
+  }
   window->header_bin_top = adw_bin_new ();
   adw_bin_set_child (ADW_BIN (window->header_bin_top), window->header_bar);
   ephy_fullscreen_box_add_top_bar (window->fullscreen_box, GTK_WIDGET (window->header_bin_top));
@@ -4392,18 +4409,7 @@ ephy_window_constructed (GObject *object)
   g_signal_connect_object (window->overlay_split_view, "notify::show-sidebar",
                            G_CALLBACK (show_sidebar_cb), window, G_CONNECT_SWAPPED);
 
-  /* Outer split — CBR cockpit (ours), PACK_START. Bookmarks stay inner. */
-  window->cbr_cockpit = cbr_cockpit_new ();
-  window->cbr_split_view = adw_overlay_split_view_new ();
-  adw_overlay_split_view_set_max_sidebar_width (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), 320);
-  adw_overlay_split_view_set_min_sidebar_width (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), 240);
-  adw_overlay_split_view_set_collapsed (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), FALSE);
-  adw_overlay_split_view_set_show_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), TRUE);
-  adw_overlay_split_view_set_sidebar_position (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), GTK_PACK_START);
-  adw_overlay_split_view_set_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), window->cbr_cockpit);
-  adw_overlay_split_view_set_content (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), window->overlay_split_view);
-  adw_application_window_set_content (ADW_APPLICATION_WINDOW (window), window->cbr_split_view);
-  /* Nested split needs ~240px cockpit plus page; distro GSettings size is too narrow. */
+  adw_application_window_set_content (ADW_APPLICATION_WINDOW (window), window->overlay_split_view);
   ephy_window_set_default_size (window, 1280, 900);
 
   ephy_tab_view_set_tab_bar (window->tab_view, window->tab_bar);
