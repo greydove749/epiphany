@@ -2,5 +2,6 @@
   "schema": "cbr-identity/v0.1",
   "application_id": "@application_id@",
   "version": "@version@",
-  "product": "CoBrowseR"
+  "product": "CBR",
+  "spelled": "Co-BrowseR"
 }

@@ -2,7 +2,7 @@
 /*
  *  Copyright © 2026 greydove749
  *
- *  This file is part of CoBrowseR, a modified GNOME Web (Epiphany).
+ *  This file is part of CBR (Co-BrowseR), a modified GNOME Web (Epiphany).
  *
  *  Epiphany is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ cbr_cockpit_new (void)
 {
   GtkWidget *box;
   GtkWidget *title;
+  GtkWidget *spelled;
   GtkWidget *hint;
 
   box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
@@ -39,10 +40,14 @@ cbr_cockpit_new (void)
   gtk_widget_set_vexpand (box, TRUE);
   gtk_widget_set_name (box, "cbr-cockpit");
 
-  title = gtk_label_new (_("CoBrowseR"));
+  title = gtk_label_new (_("CBR"));
   gtk_widget_add_css_class (title, "title-2");
   gtk_label_set_xalign (GTK_LABEL (title), 0.0);
   gtk_box_append (GTK_BOX (box), title);
+
+  spelled = gtk_label_new (_("Co-BrowseR"));
+  gtk_label_set_xalign (GTK_LABEL (spelled), 0.0);
+  gtk_box_append (GTK_BOX (box), spelled);
 
   hint = gtk_label_new (_("Operator pane. URL bar, tabs, bookmarks, and downloads stay the browser’s. Page text is untrusted."));
   gtk_label_set_wrap (GTK_LABEL (hint), TRUE);

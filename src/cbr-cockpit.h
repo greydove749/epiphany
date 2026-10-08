@@ -2,7 +2,7 @@
 /*
  *  Copyright © 2026 greydove749
  *
- *  This file is part of CoBrowseR, a modified GNOME Web (Epiphany).
+ *  This file is part of CBR (Co-BrowseR), a modified GNOME Web (Epiphany).
  *
  *  Epiphany is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by

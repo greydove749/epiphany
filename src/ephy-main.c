@@ -414,12 +414,12 @@ main (int   argc,
       ephy_web_application_setup_from_profile_directory (profile_directory);
     }
   } else if (profile_directory) {
-    /* CoBrowseR: --profile is the unique org.ant.Cbr process, not a
+    /* CBR: --profile is the unique org.ant.Cbr process, not a
      * non-unique STANDALONE sidecar of distro Web. */
     mode = EPHY_EMBED_SHELL_MODE_BROWSER;
 
     g_set_prgname ("cbr");
-    g_set_application_name (_("CoBrowseR"));
+    g_set_application_name (_("CBR"));
 
     gtk_window_set_default_icon_name (APPLICATION_ID);
   } else if (kiosk_mode) {
@@ -428,7 +428,7 @@ main (int   argc,
     mode = EPHY_EMBED_SHELL_MODE_BROWSER;
 
     g_set_prgname ("cbr");
-    g_set_application_name (_("CoBrowseR"));
+    g_set_application_name (_("CBR"));
 
     gtk_window_set_default_icon_name (APPLICATION_ID);
   }

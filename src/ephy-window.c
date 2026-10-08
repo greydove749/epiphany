@@ -4392,7 +4392,7 @@ ephy_window_constructed (GObject *object)
   g_signal_connect_object (window->overlay_split_view, "notify::show-sidebar",
                            G_CALLBACK (show_sidebar_cb), window, G_CONNECT_SWAPPED);
 
-  /* Outer split — CoBrowseR cockpit (ours), PACK_START. Bookmarks stay inner. */
+  /* Outer split — CBR cockpit (ours), PACK_START. Bookmarks stay inner. */
   window->cbr_cockpit = cbr_cockpit_new ();
   window->cbr_split_view = adw_overlay_split_view_new ();
   adw_overlay_split_view_set_max_sidebar_width (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), 320);

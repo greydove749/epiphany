@@ -33,7 +33,7 @@ iso_codes = dependency('iso-codes')
 iso_codes_prefix = iso_codes.get_variable(pkgconfig: 'prefix')
 
 profile = get_option('profile')
-# CoBrowseR (ANT CBR): isolate D-Bus uniqueness from distro GNOME Web.
+# CBR (Co-BrowseR): isolate D-Bus uniqueness from distro GNOME Web.
 application_id = 'org.ant.Cbr'
 
 if profile != ''
