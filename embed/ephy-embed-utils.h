@@ -32,7 +32,8 @@ G_BEGIN_DECLS
 #define NEW_TAB_PAGE_TITLE N_("New Tab")  /* Title for the new tab page */
 
 #define EPHY_GET_WEBKIT_WEB_VIEW_FROM_EMBED(embed) (WEBKIT_WEB_VIEW (ephy_embed_get_web_view (embed)))
-#define EPHY_GET_EMBED_FROM_EPHY_WEB_VIEW(view) (EPHY_EMBED (gtk_widget_get_parent (gtk_widget_get_parent (gtk_widget_get_parent ((GTK_WIDGET (view)))))))
+/* web_view → GtkGraphicsOffload → CbrLiveResizeBin → GtkOverlay → EphyEmbed */
+#define EPHY_GET_EMBED_FROM_EPHY_WEB_VIEW(view) (EPHY_EMBED (gtk_widget_get_parent (gtk_widget_get_parent (gtk_widget_get_parent (gtk_widget_get_parent ((GTK_WIDGET (view))))))))
 
 #define EPHY_WEBKIT_BACK_FORWARD_LIMIT 100
 
