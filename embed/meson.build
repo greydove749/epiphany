@@ -17,6 +17,7 @@ libephyembed_sources = [
   'ephy-downloads-manager.c',
   'ephy-download.c',
   'ephy-embed.c',
+  'cbr-live-resize-bin.c',
   'ephy-embed-autofill.c',
   'ephy-embed-container.c',
   'ephy-embed-prefs.c',

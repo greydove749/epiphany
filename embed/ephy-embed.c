@@ -36,6 +36,7 @@
 #include "ephy-string.h"
 #include "ephy-web-view.h"
 #include "ephy-floating-bar.h"
+#include "cbr-live-resize-bin.h"
 
 #include <glib/gi18n.h>
 #include <webkit/webkit.h>
@@ -744,7 +745,8 @@ ephy_embed_constructed (GObject *object)
   embed->overlay = gtk_overlay_new ();
 
   gtk_widget_set_vexpand (embed->overlay, TRUE);
-  gtk_overlay_set_child (GTK_OVERLAY (embed->overlay), gtk_graphics_offload_new (GTK_WIDGET (embed->web_view)));
+  gtk_overlay_set_child (GTK_OVERLAY (embed->overlay),
+                         cbr_live_resize_bin_new (gtk_graphics_offload_new (GTK_WIDGET (embed->web_view))));
 
   /* Floating message popup for fullscreen mode. */
   embed->fullscreen_message_label = gtk_label_new (NULL);
