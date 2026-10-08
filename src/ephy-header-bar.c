@@ -34,6 +34,7 @@
 #include "ephy-title-box.h"
 #include "ephy-title-widget.h"
 #include "ephy-type-builtins.h"
+#include "cbr-cockpit.h"
 
 #include <adwaita.h>
 #include <glib/gi18n.h>
@@ -163,6 +164,10 @@ ephy_header_bar_constructed (GObject *object)
   /* Header bar */
   header_bar->header_bar = adw_header_bar_new ();
   adw_bin_set_child (ADW_BIN (header_bar), header_bar->header_bar);
+
+  /* CBR chip first: top-left color-offset drag anchor. */
+  adw_header_bar_pack_start (ADW_HEADER_BAR (header_bar->header_bar),
+                             cbr_anchor_new ());
 
   /* Start action elements */
   header_bar->action_bar_start = ephy_action_bar_start_new ();

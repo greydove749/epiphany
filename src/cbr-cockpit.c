@@ -24,6 +24,26 @@
 #include <glib/gi18n.h>
 
 GtkWidget *
+cbr_anchor_new (void)
+{
+  GtkWidget *handle;
+  GtkWidget *label;
+
+  label = gtk_label_new (_("CBR"));
+  gtk_widget_add_css_class (label, "heading");
+  gtk_widget_set_can_target (label, FALSE);
+
+  handle = gtk_window_handle_new ();
+  gtk_window_handle_set_child (GTK_WINDOW_HANDLE (handle), label);
+  gtk_widget_add_css_class (handle, "cbr-anchor");
+  gtk_widget_set_tooltip_text (handle, _("CBR — Co-BrowseR"));
+  gtk_widget_set_valign (handle, GTK_ALIGN_CENTER);
+  gtk_widget_set_vexpand (handle, FALSE);
+
+  return handle;
+}
+
+GtkWidget *
 cbr_cockpit_new (void)
 {
   GtkWidget *box;

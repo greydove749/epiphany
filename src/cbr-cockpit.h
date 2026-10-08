@@ -25,5 +25,6 @@
 G_BEGIN_DECLS
 
 GtkWidget *cbr_cockpit_new (void);
+GtkWidget *cbr_anchor_new (void);
 
 G_END_DECLS

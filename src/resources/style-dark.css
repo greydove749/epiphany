@@ -1,3 +1,12 @@
+/* CBR top-left header chip */
+.cbr-anchor {
+  background-color: alpha(var(--accent-bg-color), 0.28);
+}
+
+.cbr-anchor:backdrop {
+  background-color: alpha(var(--accent-bg-color), 0.14);
+}
+
 /* incognito mode */
 .incognito-mode .top-bar.raised,
 .incognito-mode .bottom-bar.raised {

@@ -652,19 +652,20 @@ ephy_tab_view_set_tab_bar (EphyTabView *self,
                            G_CALLBACK (drag_drop_cb), self,
                            G_CONNECT_SWAPPED);
 
-  if (is_desktop_pantheon ()) {
+  {
     GtkWidget *button;
 
-    adw_tab_bar_set_autohide (tab_bar, FALSE);
-    adw_tab_bar_set_expand_tabs (tab_bar, FALSE);
-
-    button = gtk_button_new_from_icon_name ("list-add-symbolic");
+    button = gtk_button_new_from_icon_name ("tab-new-symbolic");
     /* Translators: tooltip for the new tab button */
     gtk_widget_set_tooltip_text (button, _("Open a new tab"));
     gtk_actionable_set_action_name (GTK_ACTIONABLE (button), "win.new-tab");
     gtk_widget_add_css_class (button, "flat");
+    adw_tab_bar_set_end_action_widget (tab_bar, button);
+  }
 
-    adw_tab_bar_set_start_action_widget (tab_bar, button);
+  if (is_desktop_pantheon ()) {
+    adw_tab_bar_set_autohide (tab_bar, FALSE);
+    adw_tab_bar_set_expand_tabs (tab_bar, FALSE);
   } else {
     g_signal_connect_object (EPHY_SETTINGS_UI,
                              "changed::" EPHY_PREFS_UI_TABS_BAR_VISIBILITY_POLICY,

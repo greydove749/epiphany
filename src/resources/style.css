@@ -1,3 +1,21 @@
+/* CBR top-left header chip: color offset + window-move handle */
+.cbr-anchor {
+  background-color: alpha(var(--accent-bg-color), 0.22);
+  border-radius: 9px;
+  padding: 4px 11px;
+  margin: 4px 8px 4px 2px;
+  min-width: 44px;
+}
+
+.cbr-anchor:backdrop {
+  background-color: alpha(var(--accent-bg-color), 0.12);
+}
+
+.cbr-anchor label {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 /* floating status bar */
 .floating-bar {
   background: var(--popover-bg-color);
