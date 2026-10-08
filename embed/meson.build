@@ -45,6 +45,7 @@ libephyembed_deps = [
   gio_dep,
   glib_dep,
   gtk_dep,
+  dependency('x11'),
   libadwaita_dep,
   libsecret_dep,
   libsoup_dep,

@@ -10,6 +10,11 @@
 #include "cbr-live-resize-bin.h"
 
 #include <gtk/gtk.h>
+#ifdef GDK_WINDOWING_X11
+#include <gdk/x11/gdkx.h>
+#include <X11/Xlib.h>
+#endif
+#include <limits.h>
 
 #define CBR_LIVE_RESIZE_IDLE_MS 100
 
@@ -39,6 +44,8 @@ struct _CbrLiveResizeBin {
   int sw, sh;
   int bw, bh;
   int child_w, child_h;
+  int root_x, root_y;
+  int last_root_x, last_root_y;
   GdkToplevelState last_state;
 
   guint idle_id;
@@ -127,8 +134,35 @@ reset_live (CbrLiveResizeBin *self)
   self->bh = 0;
   self->child_w = 0;
   self->child_h = 0;
+  self->root_x = 0;
+  self->root_y = 0;
+  self->last_root_x = INT_MIN;
+  self->last_root_y = INT_MIN;
   self->first_map = TRUE;
   self->last_state = 0;
+}
+
+static void
+surface_root_xy (GdkSurface *surface,
+                 int        *x,
+                 int        *y)
+{
+  *x = 0;
+  *y = 0;
+#ifdef GDK_WINDOWING_X11
+  if (surface != NULL && GDK_IS_X11_SURFACE (surface)) {
+    Display *dpy = gdk_x11_display_get_xdisplay (gdk_surface_get_display (surface));
+    Window xid = gdk_x11_surface_get_xid (surface);
+    Window child;
+    int rx = 0, ry = 0;
+
+    if (XTranslateCoordinates (dpy, xid, DefaultRootWindow (dpy),
+                               0, 0, &rx, &ry, &child)) {
+      *x = rx;
+      *y = ry;
+    }
+  }
+#endif
 }
 
 static gboolean
@@ -248,7 +282,8 @@ live_allocate (CbrLiveResizeBin *self,
                int               baseline)
 {
   GskTransform *transform = NULL;
-  double sx, sy;
+  int alloc_w, alloc_h;
+  gboolean left_edge;
 
   if (self->child == NULL)
     return;
@@ -257,15 +292,36 @@ live_allocate (CbrLiveResizeBin *self,
     return;
   }
 
-  if (self->mode == CBR_LIVE_RESIZE_MODE_FILL) {
-    gtk_widget_allocate (self->child, self->child_w, self->child_h, baseline, NULL);
+  /* Height is the scroll view: WebKit viewport tracks the bin. Text stays 1:1. */
+  alloc_h = height;
+  /* Width stays frozen (reflow is the expensive axis). */
+  alloc_w = self->child_w;
+  left_edge = (self->last_root_x != INT_MIN && self->root_x != self->last_root_x);
+
+  if (self->mode == CBR_LIVE_RESIZE_MODE_FILL || left_edge) {
+    /* Pin the frozen width to the stable (right) edge so left-edge
+     * drags do not slide the page against 1:1 chrome. */
+    int tx = width - alloc_w;
+
+    if (tx != 0) {
+      graphene_point_t p = GRAPHENE_POINT_INIT ((float) tx, 0.f);
+      transform = gsk_transform_translate (NULL, &p);
+    }
+    gtk_widget_allocate (self->child, alloc_w, alloc_h, baseline, transform);
+    cbr_log (self, "live pin-right left_edge=%d bin=%dx%d child=%dx%d tx=%d",
+             left_edge ? 1 : 0, width, height, alloc_w, alloc_h, tx);
     return;
   }
 
-  sx = (double) width / (double) self->child_w;
-  sy = (double) height / (double) self->child_h;
-  transform = gsk_transform_scale (NULL, (float) sx, (float) sy);
-  gtk_widget_allocate (self->child, self->child_w, self->child_h, baseline, transform);
+  {
+    double sx = (double) width / (double) alloc_w;
+
+    if (sx != 1.0)
+      transform = gsk_transform_scale (NULL, (float) sx, 1.0f);
+    gtk_widget_allocate (self->child, alloc_w, alloc_h, baseline, transform);
+    cbr_log (self, "live scale-x sx=%.3f bin=%dx%d child=%dx%d",
+             sx, width, height, alloc_w, alloc_h);
+  }
 }
 
 static void
@@ -315,6 +371,7 @@ cbr_live_resize_bin_size_allocate (GtkWidget *widget,
   sw = gdk_surface_get_width (surface);
   sh = gdk_surface_get_height (surface);
   state = bin_state (surface);
+  surface_root_xy (surface, &self->root_x, &self->root_y);
 
   if (self->mode == CBR_LIVE_RESIZE_MODE_OFF) {
     identity_allocate (self, width, height, baseline);
@@ -322,6 +379,8 @@ cbr_live_resize_bin_size_allocate (GtkWidget *widget,
     self->sh = sh;
     self->bw = width;
     self->bh = height;
+    self->last_root_x = self->root_x;
+    self->last_root_y = self->root_y;
     self->last_state = state;
     self->first_map = FALSE;
     return;
@@ -334,6 +393,8 @@ cbr_live_resize_bin_size_allocate (GtkWidget *widget,
     self->sh = sh;
     self->bw = width;
     self->bh = height;
+    self->last_root_x = self->root_x;
+    self->last_root_y = self->root_y;
     self->last_state = state;
     self->first_map = FALSE;
     cbr_log (self, "first-map/zero identity %dx%d", width, height);
@@ -346,6 +407,8 @@ cbr_live_resize_bin_size_allocate (GtkWidget *widget,
     self->sh = sh;
     self->bw = width;
     self->bh = height;
+    self->last_root_x = self->root_x;
+    self->last_root_y = self->root_y;
     self->last_state = state;
     cbr_log (self, "S11 !mapped identity");
     return;
@@ -390,6 +453,8 @@ cbr_live_resize_bin_size_allocate (GtkWidget *widget,
   self->sh = sh;
   self->bw = width;
   self->bh = height;
+  self->last_root_x = self->root_x;
+  self->last_root_y = self->root_y;
   self->last_state = state;
 }
 
@@ -399,10 +464,9 @@ cbr_live_resize_bin_snapshot (GtkWidget   *widget,
 {
   CbrLiveResizeBin *self = CBR_LIVE_RESIZE_BIN (widget);
 
-  if (self->live && self->mode == CBR_LIVE_RESIZE_MODE_FILL &&
-      self->child != NULL) {
+  if (self->live && self->child != NULL) {
     graphene_rect_t bounds;
-    GdkRGBA fill = { 0.17f, 0.17f, 0.17f, 1.0f };
+    GdkRGBA fill = { 0.102f, 0.227f, 0.361f, 1.0f }; /* demo page #1a3a5c */
     int w = gtk_widget_get_width (widget);
     int h = gtk_widget_get_height (widget);
 
@@ -446,6 +510,8 @@ cbr_live_resize_bin_init (CbrLiveResizeBin *self)
 {
   self->mode = parse_mode ();
   self->first_map = TRUE;
+  self->last_root_x = INT_MIN;
+  self->last_root_y = INT_MIN;
   g_signal_connect (self, "map", G_CALLBACK (on_lifecycle), NULL);
   g_signal_connect (self, "unmap", G_CALLBACK (on_lifecycle), NULL);
   g_signal_connect (self, "realize", G_CALLBACK (on_lifecycle), NULL);
