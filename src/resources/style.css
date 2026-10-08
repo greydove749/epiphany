@@ -1,17 +1,19 @@
-/* CBR top-left header chip: color offset + window-move handle */
-.cbr-anchor {
+/* TLA handle: token-first chip for AUI/AIM. Accent wash, not a solid badge.
+ * CBR uses this class plus .cbr-anchor. Token is the label; spelled name
+ * lives in tooltip / secondary caption. */
+.tla-handle {
   background-color: alpha(var(--accent-bg-color), 0.22);
   border-radius: 9px;
-  padding: 4px 11px;
-  margin: 4px 8px 4px 2px;
-  min-width: 44px;
+  padding: 4px 18px 4px 12px;
+  margin: 4px 10px 4px 2px;
+  min-width: 4.75em;
 }
 
-.cbr-anchor:backdrop {
+.tla-handle:backdrop {
   background-color: alpha(var(--accent-bg-color), 0.12);
 }
 
-.cbr-anchor label {
+.tla-handle label {
   font-weight: 700;
   letter-spacing: 0.08em;
 }

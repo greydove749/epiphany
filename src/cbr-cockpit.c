@@ -35,6 +35,7 @@ cbr_anchor_new (void)
 
   handle = gtk_window_handle_new ();
   gtk_window_handle_set_child (GTK_WINDOW_HANDLE (handle), label);
+  gtk_widget_add_css_class (handle, "tla-handle");
   gtk_widget_add_css_class (handle, "cbr-anchor");
   gtk_widget_set_tooltip_text (handle, _("CBR — Co-BrowseR"));
   gtk_widget_set_valign (handle, GTK_ALIGN_CENTER);

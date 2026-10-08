@@ -1,9 +1,9 @@
-/* CBR top-left header chip */
-.cbr-anchor {
+/* TLA handle on dark chrome */
+.tla-handle {
   background-color: alpha(var(--accent-bg-color), 0.28);
 }
 
-.cbr-anchor:backdrop {
+.tla-handle:backdrop {
   background-color: alpha(var(--accent-bg-color), 0.14);
 }
 

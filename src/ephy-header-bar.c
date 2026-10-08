@@ -57,6 +57,7 @@ struct _EphyHeaderBar {
   EphyTitleWidget *title_widget;
   EphyActionBarStart *action_bar_start;
   EphyActionBarEnd *action_bar_end;
+  GtkWidget *navigation_box;
   GtkWidget *page_menu_button;
   GtkWidget *zoom_level_label;
   GtkWidget *restore_button;
@@ -165,12 +166,19 @@ ephy_header_bar_constructed (GObject *object)
   header_bar->header_bar = adw_header_bar_new ();
   adw_bin_set_child (ADW_BIN (header_bar), header_bar->header_bar);
 
-  /* CBR chip first: top-left color-offset drag anchor. */
+  /* TLA handle first: top-left color-offset drag anchor. Room to the
+   * right because back/forward sit with the search cluster, not here. */
   adw_header_bar_pack_start (ADW_HEADER_BAR (header_bar->header_bar),
                              cbr_anchor_new ());
 
-  /* Start action elements */
+  /* Start action elements (homepage / placeholder). Navigation is
+   * reparented next to the location entry. */
   header_bar->action_bar_start = ephy_action_bar_start_new ();
+  header_bar->navigation_box =
+    ephy_action_bar_start_get_navigation_box (header_bar->action_bar_start);
+  g_object_ref (header_bar->navigation_box);
+  gtk_box_remove (GTK_BOX (header_bar->action_bar_start),
+                  header_bar->navigation_box);
   adw_header_bar_pack_start (ADW_HEADER_BAR (header_bar->header_bar),
                              GTK_WIDGET (header_bar->action_bar_start));
 
@@ -186,23 +194,30 @@ ephy_header_bar_constructed (GObject *object)
   adw_header_bar_set_title_widget (ADW_HEADER_BAR (header_bar->header_bar), event_box);
   gtk_widget_set_name (event_box, "title-box-container");
 
-  if (is_desktop_pantheon ()) {
-    /* Use a full-width entry on Pantheon */
-    gtk_widget_set_hexpand (GTK_WIDGET (header_bar->title_widget), TRUE);
-    gtk_widget_set_margin_start (GTK_WIDGET (header_bar->title_widget), 6);
-    gtk_widget_set_margin_end (GTK_WIDGET (header_bar->title_widget), 6);
+  {
+    GtkWidget *cluster = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
 
-    adw_bin_set_child (ADW_BIN (event_box), GTK_WIDGET (header_bar->title_widget));
-  } else {
-    GtkWidget *clamp;
+    gtk_widget_set_hexpand (cluster, TRUE);
+    gtk_widget_set_valign (cluster, GTK_ALIGN_CENTER);
+    gtk_box_append (GTK_BOX (cluster), header_bar->navigation_box);
+    g_object_unref (header_bar->navigation_box);
 
-    clamp = adw_clamp_new ();
-    gtk_widget_set_hexpand (GTK_WIDGET (clamp), TRUE);
-    adw_clamp_set_maximum_size (ADW_CLAMP (clamp), 860);
-    adw_clamp_set_tightening_threshold (ADW_CLAMP (clamp), 560);
-    adw_clamp_set_child (ADW_CLAMP (clamp), GTK_WIDGET (header_bar->title_widget));
+    if (is_desktop_pantheon ()) {
+      gtk_widget_set_hexpand (GTK_WIDGET (header_bar->title_widget), TRUE);
+      gtk_widget_set_margin_start (GTK_WIDGET (header_bar->title_widget), 6);
+      gtk_widget_set_margin_end (GTK_WIDGET (header_bar->title_widget), 6);
+      gtk_box_append (GTK_BOX (cluster), GTK_WIDGET (header_bar->title_widget));
+    } else {
+      GtkWidget *clamp = adw_clamp_new ();
 
-    adw_bin_set_child (ADW_BIN (event_box), clamp);
+      gtk_widget_set_hexpand (clamp, TRUE);
+      adw_clamp_set_maximum_size (ADW_CLAMP (clamp), 860);
+      adw_clamp_set_tightening_threshold (ADW_CLAMP (clamp), 560);
+      adw_clamp_set_child (ADW_CLAMP (clamp), GTK_WIDGET (header_bar->title_widget));
+      gtk_box_append (GTK_BOX (cluster), clamp);
+    }
+
+    adw_bin_set_child (ADW_BIN (event_box), cluster);
   }
 
   /* Fullscreen restore button */
@@ -323,6 +338,8 @@ ephy_header_bar_set_adaptive_mode (EphyHeaderBar    *header_bar,
       gtk_widget_set_visible (GTK_WIDGET (header_bar->action_bar_start), TRUE);
       gtk_widget_set_visible (GTK_WIDGET (header_bar->action_bar_end), TRUE);
       gtk_widget_set_visible (header_bar->page_menu_button, TRUE);
+      if (header_bar->navigation_box)
+        gtk_widget_set_visible (header_bar->navigation_box, TRUE);
       adw_header_bar_set_show_end_title_buttons (ADW_HEADER_BAR (header_bar->header_bar), TRUE);
 
       break;
@@ -330,6 +347,8 @@ ephy_header_bar_set_adaptive_mode (EphyHeaderBar    *header_bar,
       gtk_widget_set_visible (GTK_WIDGET (header_bar->action_bar_start), FALSE);
       gtk_widget_set_visible (GTK_WIDGET (header_bar->action_bar_end), FALSE);
       gtk_widget_set_visible (header_bar->page_menu_button, FALSE);
+      if (header_bar->navigation_box)
+        gtk_widget_set_visible (header_bar->navigation_box, FALSE);
       adw_header_bar_set_show_end_title_buttons (ADW_HEADER_BAR (header_bar->header_bar), FALSE);
 
       break;
