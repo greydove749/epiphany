@@ -423,7 +423,29 @@ uninstall_web_app (GSimpleAction *action,
   adw_dialog_present (dialog, parent);
 }
 
+static void
+cbr_load_url (GSimpleAction *action,
+              GVariant      *parameter,
+              gpointer       user_data)
+{
+  GtkWindow *window;
+  const char *url;
+
+  if (parameter == NULL)
+    return;
+  url = g_variant_get_string (parameter, NULL);
+  if (url == NULL || url[0] == '\0')
+    return;
+
+  window = gtk_application_get_active_window (GTK_APPLICATION (ephy_shell));
+  if (!EPHY_IS_WINDOW (window))
+    return;
+
+  ephy_window_load_url (EPHY_WINDOW (window), url);
+}
+
 static GActionEntry app_entries[] = {
+  { "cbr-load-url", cbr_load_url, "s", NULL, NULL },
   { "new-window", new_window, NULL, NULL, NULL },
   { "new-incognito", new_incognito_window, NULL, NULL, NULL },
   { "import-bookmarks", import_bookmarks, NULL, NULL, NULL },

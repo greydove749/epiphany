@@ -414,18 +414,21 @@ main (int   argc,
       ephy_web_application_setup_from_profile_directory (profile_directory);
     }
   } else if (profile_directory) {
-    /* This mode exists purely for letting EphyShell know it should
-     * not consider this instance part of the unique application
-     * represented by the BROWSER mode.
-     */
-    mode = EPHY_EMBED_SHELL_MODE_STANDALONE;
+    /* CoBrowseR: --profile is the unique org.ant.Cbr process, not a
+     * non-unique STANDALONE sidecar of distro Web. */
+    mode = EPHY_EMBED_SHELL_MODE_BROWSER;
+
+    g_set_prgname ("cbr");
+    g_set_application_name (_("CoBrowseR"));
+
+    gtk_window_set_default_icon_name (APPLICATION_ID);
   } else if (kiosk_mode) {
     mode = EPHY_EMBED_SHELL_MODE_KIOSK;
   } else {
     mode = EPHY_EMBED_SHELL_MODE_BROWSER;
 
-    g_set_prgname ("epiphany");
-    g_set_application_name (_("Web"));
+    g_set_prgname ("cbr");
+    g_set_application_name (_("CoBrowseR"));
 
     gtk_window_set_default_icon_name (APPLICATION_ID);
   }

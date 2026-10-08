@@ -33,11 +33,21 @@ iso_codes = dependency('iso-codes')
 iso_codes_prefix = iso_codes.get_variable(pkgconfig: 'prefix')
 
 profile = get_option('profile')
-application_id = 'org.gnome.Epiphany'
+# CoBrowseR (ANT CBR): isolate D-Bus uniqueness from distro GNOME Web.
+application_id = 'org.ant.Cbr'
 
 if profile != ''
-  application_id = 'org.gnome.Epiphany.' + profile
+  application_id = 'org.ant.Cbr.' + profile
 endif
+
+cbr_identity_conf = configuration_data()
+cbr_identity_conf.set('application_id', application_id)
+cbr_identity_conf.set('version', meson.project_version())
+configure_file(
+  input: 'cbr-identity.json.in',
+  output: 'cbr-identity.json',
+  configuration: cbr_identity_conf,
+)
 
 conf = configuration_data()
 conf.set_quoted('APPLICATION_ID', application_id)

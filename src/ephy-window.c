@@ -63,6 +63,7 @@
 #include "ephy-web-app-utils.h"
 #include "ephy-web-view.h"
 #include "ephy-zoom.h"
+#include "cbr-cockpit.h"
 #include "window-commands.h"
 
 #include <gdk/gdkkeysyms.h>
@@ -160,6 +161,8 @@ struct _EphyWindow {
   GtkWidget *action_bar_revealer;
   GtkWidget *action_bar;
   GtkWidget *overlay_split_view;
+  GtkWidget *cbr_split_view;
+  GtkWidget *cbr_cockpit;
   GtkWidget *bottom_sheet;
   GtkWidget *bookmarks_dialog;
   EphyEmbed *active_embed;
@@ -528,6 +531,10 @@ ephy_window_set_adaptive_mode (EphyWindow       *window,
     gtk_widget_add_css_class (GTK_WIDGET (window), "narrow");
     gtk_revealer_set_reveal_child (GTK_REVEALER (window->action_bar_revealer), TRUE);
     gtk_widget_set_visible (window->action_bar_revealer, TRUE);
+    if (window->cbr_split_view) {
+      adw_overlay_split_view_set_collapsed (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), TRUE);
+      adw_overlay_split_view_set_show_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), FALSE);
+    }
   } else {
     g_object_ref (window->header_bar);
     adw_bin_set_child (ADW_BIN (window->header_bin_bottom), NULL);
@@ -535,6 +542,10 @@ ephy_window_set_adaptive_mode (EphyWindow       *window,
     g_object_unref (window->header_bar);
     gtk_widget_remove_css_class (GTK_WIDGET (window), "narrow");
     gtk_widget_set_visible (window->action_bar_revealer, FALSE);
+    if (window->cbr_split_view) {
+      adw_overlay_split_view_set_collapsed (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), FALSE);
+      adw_overlay_split_view_set_show_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), TRUE);
+    }
   }
 }
 
@@ -4368,9 +4379,8 @@ ephy_window_constructed (GObject *object)
   ephy_shell_get_bookmarks_manager (ephy_shell_get_default ());
   window->bookmarks_dialog = ephy_bookmarks_dialog_new ();
 
-  /* Overlay Split View */
+  /* Overlay Split View — bookmarks (theirs), PACK_END */
   window->overlay_split_view = adw_overlay_split_view_new ();
-  adw_application_window_set_content (ADW_APPLICATION_WINDOW (window), GTK_WIDGET (window->overlay_split_view));
 
   adw_overlay_split_view_set_max_sidebar_width (ADW_OVERLAY_SPLIT_VIEW (window->overlay_split_view), 360);
   adw_overlay_split_view_set_collapsed (ADW_OVERLAY_SPLIT_VIEW (window->overlay_split_view), TRUE);
@@ -4381,6 +4391,20 @@ ephy_window_constructed (GObject *object)
   adw_overlay_split_view_set_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->overlay_split_view), window->bookmarks_dialog);
   g_signal_connect_object (window->overlay_split_view, "notify::show-sidebar",
                            G_CALLBACK (show_sidebar_cb), window, G_CONNECT_SWAPPED);
+
+  /* Outer split — CoBrowseR cockpit (ours), PACK_START. Bookmarks stay inner. */
+  window->cbr_cockpit = cbr_cockpit_new ();
+  window->cbr_split_view = adw_overlay_split_view_new ();
+  adw_overlay_split_view_set_max_sidebar_width (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), 320);
+  adw_overlay_split_view_set_min_sidebar_width (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), 240);
+  adw_overlay_split_view_set_collapsed (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), FALSE);
+  adw_overlay_split_view_set_show_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), TRUE);
+  adw_overlay_split_view_set_sidebar_position (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), GTK_PACK_START);
+  adw_overlay_split_view_set_sidebar (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), window->cbr_cockpit);
+  adw_overlay_split_view_set_content (ADW_OVERLAY_SPLIT_VIEW (window->cbr_split_view), window->overlay_split_view);
+  adw_application_window_set_content (ADW_APPLICATION_WINDOW (window), window->cbr_split_view);
+  /* Nested split needs ~240px cockpit plus page; distro GSettings size is too narrow. */
+  ephy_window_set_default_size (window, 1280, 900);
 
   ephy_tab_view_set_tab_bar (window->tab_view, window->tab_bar);
   ephy_tab_view_set_tab_overview (window->tab_view, ADW_TAB_OVERVIEW (window->overview));
