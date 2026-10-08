@@ -13,8 +13,11 @@
 #ifdef GDK_WINDOWING_X11
 #include <gdk/x11/gdkx.h>
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #endif
 #include <limits.h>
+#include <math.h>
+#include <string.h>
 
 #define CBR_LIVE_RESIZE_IDLE_MS 100
 
@@ -54,6 +57,11 @@ struct _CbrLiveResizeBin {
 
   guint bin_alloc_live;
   guint identity_count;
+
+  GdkTexture *frame;
+  int frame_w, frame_h;
+  gboolean pin_right;
+  gboolean pin_bottom;
 };
 
 G_DEFINE_FINAL_TYPE (CbrLiveResizeBin, cbr_live_resize_bin, GTK_TYPE_WIDGET)
@@ -124,9 +132,153 @@ clear_idle (CbrLiveResizeBin *self)
 }
 
 static void
+drop_frame (CbrLiveResizeBin *self)
+{
+  g_clear_object (&self->frame);
+  self->frame_w = 0;
+  self->frame_h = 0;
+}
+
+static void
+set_child_live_hidden (CbrLiveResizeBin *self,
+                       gboolean          hidden)
+{
+  if (self->child == NULL)
+    return;
+  if (GTK_IS_GRAPHICS_OFFLOAD (self->child)) {
+    gtk_graphics_offload_set_enabled (
+        GTK_GRAPHICS_OFFLOAD (self->child),
+        hidden ? GTK_GRAPHICS_OFFLOAD_DISABLED : GTK_GRAPHICS_OFFLOAD_ENABLED);
+  }
+  gtk_widget_set_opacity (self->child, hidden ? 0.0 : 1.0);
+}
+
+#ifdef GDK_WINDOWING_X11
+static GdkTexture *
+texture_from_ximage (XImage *img,
+                     int     w,
+                     int     h)
+{
+  gsize stride = (gsize) w * 4;
+  guint8 *out = g_malloc (stride * (gsize) h);
+
+  if (img->bits_per_pixel == 32 && img->bytes_per_line >= (int) stride) {
+    int y, x;
+
+    for (y = 0; y < h; y++) {
+      const guint8 *src = (const guint8 *) img->data + (gsize) y * (gsize) img->bytes_per_line;
+      guint8 *dst = out + (gsize) y * stride;
+
+      memcpy (dst, src, stride);
+      for (x = 0; x < w; x++)
+        dst[x * 4 + 3] = 0xff;
+    }
+  } else {
+    int y, x;
+
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        unsigned long p = XGetPixel (img, x, y);
+        guint8 *d = out + (gsize) y * stride + (gsize) x * 4;
+
+        d[0] = (guint8) (p & 0xff);
+        d[1] = (guint8) ((p >> 8) & 0xff);
+        d[2] = (guint8) ((p >> 16) & 0xff);
+        d[3] = 0xff;
+      }
+    }
+  }
+
+  {
+    GBytes *bytes = g_bytes_new_take (out, stride * (gsize) h);
+    GdkTexture *tex = gdk_memory_texture_new (w, h, GDK_MEMORY_DEFAULT, bytes, stride);
+
+    g_bytes_unref (bytes);
+    return tex;
+  }
+}
+
+static GdkTexture *
+capture_x11_frame (CbrLiveResizeBin *self)
+{
+  GtkWidget *widget = GTK_WIDGET (self);
+  GtkNative *native;
+  GdkSurface *surface;
+  graphene_rect_t bounds;
+  Display *dpy;
+  Window xid;
+  XImage *img;
+  GdkTexture *tex;
+  int x, y, w, h, sw, sh;
+
+  if (self->child == NULL)
+    return NULL;
+  native = gtk_widget_get_native (widget);
+  if (native == NULL)
+    return NULL;
+  surface = gtk_native_get_surface (native);
+  if (surface == NULL || !GDK_IS_X11_SURFACE (surface))
+    return NULL;
+  if (!gtk_widget_compute_bounds (self->child, GTK_WIDGET (native), &bounds))
+    return NULL;
+
+  x = (int) floorf (bounds.origin.x);
+  y = (int) floorf (bounds.origin.y);
+  w = (int) roundf (bounds.size.width);
+  h = (int) roundf (bounds.size.height);
+  if (w <= 0 || h <= 0)
+    return NULL;
+
+  sw = gdk_surface_get_width (surface);
+  sh = gdk_surface_get_height (surface);
+  if (x < 0) {
+    w += x;
+    x = 0;
+  }
+  if (y < 0) {
+    h += y;
+    y = 0;
+  }
+  if (x + w > sw)
+    w = sw - x;
+  if (y + h > sh)
+    h = sh - y;
+  if (w <= 0 || h <= 0)
+    return NULL;
+
+  dpy = gdk_x11_display_get_xdisplay (gdk_surface_get_display (surface));
+  xid = gdk_x11_surface_get_xid (surface);
+  img = XGetImage (dpy, xid, x, y, (unsigned) w, (unsigned) h, AllPlanes, ZPixmap);
+  if (img == NULL)
+    return NULL;
+  tex = texture_from_ximage (img, w, h);
+  XDestroyImage (img);
+  return tex;
+}
+#endif
+
+static void
+capture_frame (CbrLiveResizeBin *self)
+{
+  drop_frame (self);
+#ifdef GDK_WINDOWING_X11
+  self->frame = capture_x11_frame (self);
+#endif
+  if (self->frame != NULL) {
+    self->frame_w = gdk_texture_get_width (self->frame);
+    self->frame_h = gdk_texture_get_height (self->frame);
+    cbr_log (self, "S15 capture %dx%d", self->frame_w, self->frame_h);
+  } else {
+    cbr_log (self, "S15 capture failed");
+  }
+}
+
+static void
 reset_live (CbrLiveResizeBin *self)
 {
   clear_idle (self);
+  set_child_live_hidden (self, FALSE);
+  drop_frame (self);
   self->live = FALSE;
   self->sw = 0;
   self->sh = 0;
@@ -140,6 +292,8 @@ reset_live (CbrLiveResizeBin *self)
   self->last_root_y = INT_MIN;
   self->first_map = TRUE;
   self->last_state = 0;
+  self->pin_right = FALSE;
+  self->pin_bottom = FALSE;
 }
 
 static void
@@ -172,6 +326,8 @@ idle_cb (gpointer data)
 
   self->idle_id = 0;
   self->live = FALSE;
+  set_child_live_hidden (self, FALSE);
+  drop_frame (self);
   cbr_log (self, "S2 idle-exit queue_allocate (identity next)");
   gtk_widget_queue_allocate (GTK_WIDGET (self));
   return G_SOURCE_REMOVE;
@@ -269,6 +425,8 @@ identity_allocate (CbrLiveResizeBin *self,
 {
   if (self->child == NULL)
     return;
+  set_child_live_hidden (self, FALSE);
+  drop_frame (self);
   gtk_widget_allocate (self->child, width, height, baseline, NULL);
   self->child_w = width;
   self->child_h = height;
@@ -281,10 +439,6 @@ live_allocate (CbrLiveResizeBin *self,
                int               height,
                int               baseline)
 {
-  GskTransform *transform = NULL;
-  int alloc_w, alloc_h;
-  gboolean left_edge;
-
   if (self->child == NULL)
     return;
   if (self->child_w <= 0 || self->child_h <= 0) {
@@ -292,35 +446,42 @@ live_allocate (CbrLiveResizeBin *self,
     return;
   }
 
-  /* Height is the scroll view: WebKit viewport tracks the bin. Text stays 1:1. */
-  alloc_h = height;
-  /* Width stays frozen (reflow is the expensive axis). */
-  alloc_w = self->child_w;
-  left_edge = (self->last_root_x != INT_MIN && self->root_x != self->last_root_x);
-
-  if (self->mode == CBR_LIVE_RESIZE_MODE_FILL || left_edge) {
-    /* Pin the frozen width to the stable (right) edge so left-edge
-     * drags do not slide the page against 1:1 chrome. */
-    int tx = width - alloc_w;
-
-    if (tx != 0) {
-      graphene_point_t p = GRAPHENE_POINT_INIT ((float) tx, 0.f);
-      transform = gsk_transform_translate (NULL, &p);
-    }
-    gtk_widget_allocate (self->child, alloc_w, alloc_h, baseline, transform);
-    cbr_log (self, "live pin-right left_edge=%d bin=%dx%d child=%dx%d tx=%d",
-             left_edge ? 1 : 0, width, height, alloc_w, alloc_h, tx);
+  /* Screenshot path: freeze WebKit at the captured size. The bin
+   * paints the texture in snapshot(). */
+  if (self->frame != NULL) {
+    gtk_widget_allocate (self->child, self->child_w, self->child_h,
+                         baseline, NULL);
+    cbr_log (self, "live screenshot freeze child=%dx%d bin=%dx%d",
+             self->child_w, self->child_h, width, height);
     return;
   }
 
+  /* Fallback if capture failed: previous allocate-with-transform. */
   {
-    double sx = (double) width / (double) alloc_w;
+    GskTransform *transform = NULL;
+    int alloc_w = self->child_w;
+    int alloc_h = self->child_h;
+    gboolean left_edge = (self->last_root_x != INT_MIN &&
+                          self->root_x != self->last_root_x);
 
-    if (sx != 1.0)
-      transform = gsk_transform_scale (NULL, (float) sx, 1.0f);
-    gtk_widget_allocate (self->child, alloc_w, alloc_h, baseline, transform);
-    cbr_log (self, "live scale-x sx=%.3f bin=%dx%d child=%dx%d",
-             sx, width, height, alloc_w, alloc_h);
+    if (self->mode == CBR_LIVE_RESIZE_MODE_FILL || left_edge) {
+      int tx = width - alloc_w;
+
+      if (tx != 0) {
+        graphene_point_t p = GRAPHENE_POINT_INIT ((float) tx, 0.f);
+        transform = gsk_transform_translate (NULL, &p);
+      }
+      gtk_widget_allocate (self->child, alloc_w, alloc_h, baseline, transform);
+      return;
+    }
+
+    {
+      double sx = (double) width / (double) alloc_w;
+      double sy = (double) height / (double) alloc_h;
+
+      transform = gsk_transform_scale (NULL, (float) sx, (float) sy);
+      gtk_widget_allocate (self->child, alloc_w, alloc_h, baseline, transform);
+    }
   }
 }
 
@@ -421,22 +582,36 @@ cbr_live_resize_bin_size_allocate (GtkWidget *widget,
 
   if (!self->live) {
     if (surface_changed && !state_geom_changed) {
+      capture_frame (self);
+      if (self->frame != NULL)
+        set_child_live_hidden (self, TRUE);
       self->live = TRUE;
+      self->pin_right = (self->last_root_x != INT_MIN &&
+                         self->root_x != self->last_root_x);
+      self->pin_bottom = (self->last_root_y != INT_MIN &&
+                          self->root_y != self->last_root_y);
       start_idle (self);
       live_allocate (self, width, height, baseline);
       self->bin_alloc_live++;
-      cbr_log (self, "S1 enter live bin=%dx%d child=%dx%d surface=%dx%d",
-               width, height, self->child_w, self->child_h, sw, sh);
+      cbr_log (self, "S1 enter live bin=%dx%d child=%dx%d surface=%dx%d frame=%dx%d pin_r=%d pin_b=%d",
+               width, height, self->child_w, self->child_h, sw, sh,
+               self->frame_w, self->frame_h,
+               self->pin_right ? 1 : 0, self->pin_bottom ? 1 : 0);
     } else {
       identity_allocate (self, width, height, baseline);
     }
   } else {
     if (surface_changed) {
+      if (self->last_root_x != INT_MIN && self->root_x != self->last_root_x)
+        self->pin_right = TRUE;
+      if (self->last_root_y != INT_MIN && self->root_y != self->last_root_y)
+        self->pin_bottom = TRUE;
       restart_idle (self);
       live_allocate (self, width, height, baseline);
       self->bin_alloc_live++;
-      cbr_log (self, "S1 extend live bin=%dx%d child=%dx%d",
-               width, height, self->child_w, self->child_h);
+      cbr_log (self, "S1 extend live bin=%dx%d child=%dx%d pin_r=%d pin_b=%d",
+               width, height, self->child_w, self->child_h,
+               self->pin_right ? 1 : 0, self->pin_bottom ? 1 : 0);
     } else if (!bin_changed) {
       live_allocate (self, width, height, baseline);
       self->bin_alloc_live++;
@@ -444,6 +619,8 @@ cbr_live_resize_bin_size_allocate (GtkWidget *widget,
     } else {
       clear_idle (self);
       self->live = FALSE;
+      set_child_live_hidden (self, FALSE);
+      drop_frame (self);
       identity_allocate (self, width, height, baseline);
       cbr_log (self, "internal bin-size change identity %dx%d", width, height);
     }
@@ -463,15 +640,34 @@ cbr_live_resize_bin_snapshot (GtkWidget   *widget,
                               GtkSnapshot *snapshot)
 {
   CbrLiveResizeBin *self = CBR_LIVE_RESIZE_BIN (widget);
+  int w = gtk_widget_get_width (widget);
+  int h = gtk_widget_get_height (widget);
 
-  if (self->live && self->child != NULL) {
-    graphene_rect_t bounds;
-    GdkRGBA fill = { 0.102f, 0.227f, 0.361f, 1.0f }; /* demo page #1a3a5c */
-    int w = gtk_widget_get_width (widget);
-    int h = gtk_widget_get_height (widget);
+  if (self->live && self->frame != NULL) {
+    graphene_rect_t fill_r, dest;
+    GdkRGBA fill = { 0.102f, 0.227f, 0.361f, 1.0f };
+    float dx = 0.f, dy = 0.f;
+    float dw, dh;
 
-    graphene_rect_init (&bounds, 0, 0, (float) w, (float) h);
-    gtk_snapshot_append_color (snapshot, &fill, &bounds);
+    graphene_rect_init (&fill_r, 0, 0, (float) w, (float) h);
+    gtk_snapshot_append_color (snapshot, &fill, &fill_r);
+
+    if (self->mode == CBR_LIVE_RESIZE_MODE_FILL || self->pin_right) {
+      dw = (float) self->frame_w;
+      dx = (float) (w - self->frame_w);
+    } else {
+      dw = (float) w;
+      dx = 0.f;
+    }
+    dh = (float) self->frame_h;
+    dy = 0.f;
+    if (self->pin_bottom)
+      dy = (float) (h - self->frame_h);
+
+    graphene_rect_init (&dest, dx, dy, dw, dh);
+    gtk_snapshot_append_scaled_texture (snapshot, self->frame,
+                                        GSK_SCALING_FILTER_LINEAR, &dest);
+    return;
   }
 
   if (self->child != NULL)
@@ -485,6 +681,7 @@ cbr_live_resize_bin_dispose (GObject *object)
 
   clear_idle (self);
   unhook_surface (self);
+  drop_frame (self);
   if (self->child != NULL) {
     gtk_widget_unparent (self->child);
     self->child = NULL;
