@@ -1226,9 +1226,9 @@ window_cmd_show_about (GSimpleAction *action,
     adw_about_dialog_set_application_name (dialog, _("Epiphany Canary"));
   else {
 #if !TECH_PREVIEW
-    adw_about_dialog_set_application_name (dialog, _("Web"));
+    adw_about_dialog_set_application_name (dialog, _("CBR Co-Browser, based on Epiphany"));
 #else
-    adw_about_dialog_set_application_name (dialog, _("Epiphany Technology Preview"));
+    adw_about_dialog_set_application_name (dialog, _("CBR Co-Browser, based on Epiphany"));
 #endif
   }
 
