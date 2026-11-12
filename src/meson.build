@@ -26,6 +26,7 @@ libephymain_sources = [
   'ephy-action-helper.c',
   'ephy-add-opensearch-engine-button.c',
   'cbr-cockpit.c',
+  'cbr-drive.c',
   'ephy-certificate-dialog.c',
   'ephy-desktop-utils.c',
   'ephy-downloads-paintable.c',

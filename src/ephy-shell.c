@@ -23,6 +23,8 @@
 #include "config.h"
 #include "ephy-shell.h"
 
+#include "cbr-drive.h"
+
 #include "ephy-debug.h"
 #include "ephy-desktop-utils.h"
 #include "ephy-embed-container.h"
@@ -948,6 +950,26 @@ ephy_shell_constructed (GObject *object)
     G_OBJECT_CLASS (ephy_shell_parent_class)->constructed (object);
 }
 
+static gboolean
+ephy_shell_dbus_register (GApplication    *application,
+                          GDBusConnection *connection,
+                          const char      *object_path,
+                          GError         **error)
+{
+  if (!G_APPLICATION_CLASS (ephy_shell_parent_class)->dbus_register (application, connection, object_path, error))
+    return FALSE;
+  return cbr_drive_export (connection, object_path, error);
+}
+
+static void
+ephy_shell_dbus_unregister (GApplication    *application,
+                            GDBusConnection *connection,
+                            const char      *object_path)
+{
+  cbr_drive_unexport (connection);
+  G_APPLICATION_CLASS (ephy_shell_parent_class)->dbus_unregister (application, connection, object_path);
+}
+
 static void
 ephy_shell_class_init (EphyShellClass *klass)
 {
@@ -962,6 +984,8 @@ ephy_shell_class_init (EphyShellClass *klass)
   application_class->activate = ephy_shell_activate;
   application_class->before_emit = ephy_shell_before_emit;
   application_class->add_platform_data = ephy_shell_add_platform_data;
+  application_class->dbus_register = ephy_shell_dbus_register;
+  application_class->dbus_unregister = ephy_shell_dbus_unregister;
 }
 
 static void
